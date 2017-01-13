@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Web;
 using System.Text;
 using System.Threading.Tasks;
@@ -50,8 +52,15 @@ namespace FlickrDownloader
                     userId = lines[1];
                     userName = lines[2];
                     f.AuthToken = token;
-                    string tmp = f.UrlsGetUserProfile();
-                    if (string.IsNullOrWhiteSpace(tmp))
+                    try
+                    {
+                        string tmp = f.UrlsGetUserProfile();
+                        if (string.IsNullOrWhiteSpace(tmp))
+                        {
+                            userId = null;
+                        }
+                    }
+                    catch
                     {
                         userId = null;
                     }
@@ -63,53 +72,235 @@ namespace FlickrDownloader
             }
         }
 
+        private static void MergeVideos()
+        {
+            Console.WriteLine("Where to merge videos to? You can drag and drop folder to here.");
+            Console.Write("--> ");
+            string dest = Console.ReadLine();
+            Console.WriteLine("Where to merge videos from? You can drag and drop folder to here.");
+            Console.Write("--> ");
+            string src = Console.ReadLine();
+            List<string> videos = new List<string>();
+            string[] files = Directory.GetFiles(src);
+            Dictionary<string, string> idsToPaths = new Dictionary<string, string>();
+            string[] textFiles = Directory.GetFiles(dest, "*.txt", SearchOption.AllDirectories);
+            foreach (string file in textFiles)
+            {
+                string[] lines = File.ReadAllLines(file);
+                string id = lines[1];
+                idsToPaths[id] = file;
+            }
+
+            foreach (string file in files)
+            {
+                switch (Path.GetExtension(file).ToUpperInvariant())
+                {
+                    case ".MOV":
+                    case ".MP4":
+                    case ".WMV":
+                    case ".MKV":
+                    case ".AVI":
+                    case ".QT":
+                    case ".MPG":
+                    case ".FLV":
+                    case ".MPEG":
+                        videos.Add(file);
+                        break;
+                }
+            }
+            foreach (string file in videos)
+            {
+                string id = Path.GetFileNameWithoutExtension(file);
+                string path;
+                if (!idsToPaths.TryGetValue(id, out path))
+                {
+                    throw new IOException("Couldn't find metadata for id " + id);
+                }
+                string mp4File = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(path)));
+                FileInfo oldInfo = new FileInfo(mp4File);
+                string newFile = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(file));
+                if (File.Exists(newFile))
+                {
+                    File.Delete(newFile);
+                }
+                File.Move(file, newFile);
+
+                // copy over dates
+                FileInfo info = new FileInfo(newFile);
+                info.LastWriteTimeUtc = oldInfo.LastWriteTimeUtc;
+                info.CreationTimeUtc = oldInfo.CreationTimeUtc;
+                info.Refresh();
+
+                // delete the txt file and mp4 file
+                File.Delete(path);
+                File.Delete(mp4File);
+            }
+        }
+
+        private static void DownloadVideos()
+        {
+            Console.WriteLine("Where to load video metadata from? You can drag and drop folder to here.");
+            Console.Write("--> ");
+            string path = Console.ReadLine();
+            Console.WriteLine("Where does your browser download files to?");
+            Console.Write("--> ");
+            string downloads = Console.ReadLine();
+            string[] videoTextFiles = Directory.GetFiles(path, "*.txt", SearchOption.AllDirectories);
+            string[] downloadFiles = Directory.GetFiles(downloads);
+            HashSet<string> ids = new HashSet<string>();
+            foreach (string file in downloadFiles)
+            {
+                ids.Add(Path.GetFileNameWithoutExtension(file));
+            }
+            Console.WriteLine("How many seconds to sleep per video download? [10]");
+            Console.Write("--> ");
+            string seconds = Console.ReadLine();
+            float sleep;
+            TimeSpan sleepSpan;
+            if (float.TryParse(seconds, out sleep))
+            {
+                sleepSpan = TimeSpan.FromSeconds(sleep);
+            }
+            else
+            {
+                sleepSpan = TimeSpan.FromSeconds(10.0);
+            }
+            Console.WriteLine("Press ENTER once browser stops downloading videos or to abort.");
+            Console.Write("--> ");
+
+            foreach (string file in videoTextFiles)
+            {
+                string[] lines = File.ReadAllLines(file);
+                if (!ids.Contains(lines[1]))
+                {
+                    Process.Start(lines[0]);
+                    System.Threading.Thread.Sleep(sleepSpan);
+                }
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Enter)
+                {
+                    return;
+                }
+            }
+            Console.ReadLine();
+        }
+
         private static async Task DownloadPhotosAsync()
         {
-            Console.WriteLine("Whete do you want to save photos? You can drag and drop folder to here.");
+            Console.WriteLine("Where do you want to save photos? You can drag and drop folder to here.");
             Console.Write("--> ");
             string path = Console.ReadLine();
             Directory.CreateDirectory(path);
-            PhotoSearchExtras options = PhotoSearchExtras.Description | PhotoSearchExtras.DateTaken | PhotoSearchExtras.DateUploaded | PhotoSearchExtras.OriginalUrl | PhotoSearchExtras.LargeUrl;
+            PhotoSearchExtras options = PhotoSearchExtras.OriginalFormat | PhotoSearchExtras.Media | PhotoSearchExtras.Description | PhotoSearchExtras.DateUploaded | PhotoSearchExtras.DateTaken | PhotoSearchExtras.DateUploaded | PhotoSearchExtras.OriginalUrl | PhotoSearchExtras.LargeUrl;
             PhotoCountCollection counts = f.PhotosGetCounts(new DateTime[] { DateTime.Parse("1970-01-01"), DateTime.Parse("9999-01-01") });
             int count = counts[0].Count;
             int downloaded = 0;
-            int pages = (int)Math.Ceiling((float)count / 100.0f);
+            int unknownDateTakenCount = 0;
+            int pages = (int)Math.Ceiling((float)count / 500.0f);
+            int skipped = 0;
             Console.WriteLine("Downloading {0} photos and videos, ESC to abort.", count);
             HttpClient client = new HttpClient();
             for (int i = 0; i < pages; i++)
             {
-                PhotoCollection photos = f.PeopleGetPhotos(options, i, 100);
+                PhotoCollection photos = f.PeopleGetPhotos(options, i, 500);
+                string subFolder;
                 foreach (Photo photo in photos)
                 {
-                    string fullUrl = photo.OriginalUrl ?? photo.LargeUrl;
-                    DateTime dt = photo.DateTaken;
-                    if (dt == DateTime.MinValue || photo.DateTakenUnknown)
+                    string fullUrl = null;
+                    string extension = null;
+                    string urlText = null;
+                    if (photo.Media == "video")
                     {
-                        dt = DateTime.UtcNow;
-                    }
-                    string filePath = Path.Combine(path, dt.Year + "-" + dt.Month.ToString("00"));
-                    Directory.CreateDirectory(filePath);
-                    filePath = Path.Combine(filePath, photo.PhotoId + Path.GetExtension(fullUrl));
-                    FileInfo info = new FileInfo(filePath);
-                    if (!File.Exists(filePath) || info.Length == 0)
-                    {
-                        Stream stream = await client.GetStreamAsync(fullUrl);
-                        using (FileStream fileStream = File.Create(filePath))
+                        extension = ".mp4";
+
+                        // Bug in Flickr API does not return original video
+                        // save off the download url, photo id, original secret and secret so we 
+                        // can post process and download the original videos later
+                        urlText = "https://www.flickr.com/video_download.gne?id=" + photo.PhotoId + Environment.NewLine + photo.PhotoId + Environment.NewLine + photo.OriginalSecret + Environment.NewLine + photo.Secret;
+                        fullUrl = string.Empty;
+                        /*
+                        // fullUrl = "https://www.flickr.com/photos/" + userId + "/" + photo.PhotoId + "/play/orig/" + photo.Secret;
+                        SizeCollection col = f.PhotosGetSizes(photo.PhotoId);
+                        foreach (FlickrNet.Size size in col)
                         {
-                            stream.CopyTo(fileStream);
+                            if (size.MediaType == MediaType.Videos && size.Label == "Video Original")
+                            {
+                                fullUrl = size.Source;
+                                break;
+                            }
                         }
+                        */
                     }
-                    info.CreationTimeUtc = photo.DateTaken;
-                    info.Refresh();
-                    Console.Write("{0} / {1}       \r", ++downloaded, count);
+                    else
+                    {
+                        fullUrl = photo.OriginalUrl ?? photo.LargeUrl;
+                        extension = Path.GetExtension(fullUrl) ?? ".jpg";
+                    }
+                    if (fullUrl == null || extension == null)
+                    {
+                        skipped++;
+                    }
+                    else
+                    {
+                        DateTime dt = photo.DateTaken;
+                        if (dt == DateTime.MinValue)
+                        {
+                            dt = photo.DateUploaded;
+                            if (dt == DateTime.MinValue)
+                            {
+                                unknownDateTakenCount++;
+                                dt = DateTime.UtcNow;
+                                subFolder = "UnknownDate";
+                            }
+                            else
+                            {
+                                subFolder = dt.Year.ToString("0000") + "-" + dt.Month.ToString("00");
+                            }
+                        }
+                        else
+                        {
+                            subFolder = dt.Year.ToString("0000") + "-" + dt.Month.ToString("00");
+                        }
+                        string filePath = Path.Combine(path, subFolder);
+                        Directory.CreateDirectory(filePath);
+                        filePath = Path.Combine(filePath, photo.PhotoId + extension);
+                        FileInfo info = new FileInfo(filePath);
+                        if (!File.Exists(filePath))
+                        {
+                            if (urlText != null)
+                            {
+                                File.WriteAllText(filePath + ".orig_url.txt", urlText);
+                            }
+                            string tmpPath = Path.Combine(path, "tempdownload__.tmp");
+                            using (FileStream fileStream = File.Create(tmpPath))
+                            {
+                                // videos are done later in a post process, we only need a 0 byte file to act as a placeholder
+                                if (fullUrl.Length != 0)
+                                {
+                                    Stream stream = await client.GetStreamAsync(fullUrl);
+                                    stream.CopyTo(fileStream);
+                                }
+                            }
+                            File.Move(tmpPath, filePath);
+                        }
+                        else
+                        {
+                            skipped++;
+                        }
+                        info.CreationTimeUtc = info.LastAccessTimeUtc = info.LastWriteTimeUtc = dt;
+                        info.Refresh();
+                    }
+                    if (++downloaded % 10 == 0)
+                    {
+                        Console.Write("{0} / {1} ({2} skipped, {3} unknown date)       \r", downloaded, count, skipped, unknownDateTakenCount);
+                    }
                     if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                     {
-                        Console.WriteLine("{0} / {1}, ABORTED!", downloaded, count);
+                        Console.WriteLine("{0} / {1} ({2} skipped, {3} unknown date), ABORTED!", downloaded, count, skipped, unknownDateTakenCount);
                         return;
                     }
                 }
             }
-            Console.WriteLine("{0} / {1}, DONE!", downloaded, count);
+            Console.WriteLine("{0} / {1} ({2} skipped, {3} unknown date), DONE!", downloaded, count, skipped, unknownDateTakenCount);
         }
 
         public static int Main(string[] args)
@@ -117,25 +308,34 @@ namespace FlickrDownloader
             try
             {
                 f = new Flickr(appKey, appSecret);
+                f.InstanceCacheDisabled = true;
                 startOver:
                 Setup();
 
                 Console.WriteLine("Logged in as {0}", userName);
                 while (true)
                 {
-                    Console.WriteLine("1] Download photos, 2] Logout, Q to quit.");
+                    Console.WriteLine("1] Download photos, 2] Download Videos 3] Merge Videos 4] Logout, Q to quit.");
                     Console.Write("--> ");
                     string option = Console.ReadLine();
                     if (option.ToUpperInvariant() == "Q")
                     {
                         break;
                     }
-                    else if (option == "2")
+                    else if (option == "4")
                     {
                         f.AuthToken = null;
                         userId = userName = null;
                         File.Delete("token.txt");
                         goto startOver;
+                    }
+                    else if (option == "3")
+                    {
+                        MergeVideos();
+                    }
+                    else if (option == "2")
+                    {
+                        DownloadVideos();
                     }
                     else if (option == "1")
                     {
@@ -164,3 +364,39 @@ var queryDictionary = System.Web.HttpUtility.ParseQueryString(uri.Query);
 string oauthToken = queryDictionary["oauth_token"];
 */
 
+/*
+        private void AuthenticateButton_Click(object sender, EventArgs e)
+        {
+            Flickr f = FlickrManager.GetInstance();
+            requestToken = f.OAuthGetRequestToken("oob");
+
+            string url = f.OAuthCalculateAuthorizationUrl(requestToken.Token, AuthLevel.Write);
+
+            System.Diagnostics.Process.Start(url);
+
+            Step2GroupBox.Enabled = true;
+        }
+
+        private void CompleteAuthButton_Click(object sender, EventArgs e)
+        {
+            if (String.IsNullOrEmpty(VerifierTextBox.Text))
+            {
+                MessageBox.Show("You must paste the verifier code into the textbox above.");
+                return;
+            }
+
+            Flickr f = FlickrManager.GetInstance();
+            try
+            {
+                var accessToken = f.OAuthGetAccessToken(requestToken, VerifierTextBox.Text);
+                FlickrManager.OAuthToken = accessToken;
+                ResultLabel.Text = "Successfully authenticated as " + accessToken.FullName;
+            }
+            catch (FlickrApiException ex)
+            {
+                MessageBox.Show("Failed to get access token. Error message: " + ex.Message);
+            }
+        }
+    }
+
+*/

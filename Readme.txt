@@ -3,6 +3,11 @@
 Instructions:
 - Ensure you fill in the key and secret in the FlickrDownloaderApp.cs file.
 - Set your app authentication to Desktop.
+- First do step 1. This will get all your photos and write video metadata only;.
+- Next, step 2. This automates your browser (Chrome is ideal) to download all your original videos.
+- Finally, step 3 where it merges your browser downloads folder to the folder where all your photos downloaded, keeping video metadata intact!
+- *** IMPORTANT *** Clear out your browser download folder before running step 2!
+- *** IMPORTANT *** Let the program run over night. Make sure your computer is set to never sleep.
 
 The MIT License
 
