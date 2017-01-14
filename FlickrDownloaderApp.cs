@@ -80,6 +80,10 @@ namespace FlickrDownloader
             Console.WriteLine("Where to merge videos from? You can drag and drop folder to here.");
             Console.Write("--> ");
             string src = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(dest) || string.IsNullOrWhiteSpace(src))
+            {
+                return;
+            }
             List<string> videos = new List<string>();
             string[] files = Directory.GetFiles(src);
             Dictionary<string, string> idsToPaths = new Dictionary<string, string>();
@@ -135,7 +139,7 @@ namespace FlickrDownloader
                 // delete the txt file and mp4 file
                 File.Delete(path);
                 File.Delete(mp4File);
-                Console.Write("Videos Moved: {0}     ", ++count);
+                Console.Write("Videos Moved: {0}     \r", ++count);
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Enter)
                 {
                     return;
@@ -152,6 +156,10 @@ namespace FlickrDownloader
             Console.WriteLine("Where does your browser download files to?");
             Console.Write("--> ");
             string downloads = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(downloads))
+            {
+                return;
+            }
             string[] videoTextFiles = Directory.GetFiles(path, "*.txt", SearchOption.AllDirectories);
             string[] downloadFiles = Directory.GetFiles(downloads);
             HashSet<string> ids = new HashSet<string>();
@@ -196,6 +204,10 @@ namespace FlickrDownloader
             Console.WriteLine("Where do you want to save photos? You can drag and drop folder to here.");
             Console.Write("--> ");
             string path = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
             Directory.CreateDirectory(path);
             PhotoSearchExtras options = PhotoSearchExtras.OriginalFormat | PhotoSearchExtras.Media | PhotoSearchExtras.Description | PhotoSearchExtras.DateUploaded | PhotoSearchExtras.DateTaken | PhotoSearchExtras.DateUploaded | PhotoSearchExtras.OriginalUrl | PhotoSearchExtras.LargeUrl;
             PhotoCountCollection counts = f.PhotosGetCounts(new DateTime[] { DateTime.Parse("1970-01-01"), DateTime.Parse("9999-01-01") });
