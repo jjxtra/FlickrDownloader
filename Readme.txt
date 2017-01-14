@@ -1,6 +1,7 @@
 ﻿A simple console app to download all your Flickr photos and videos.
 
 Instructions:
+- Sign up for a Flickr API key: https://www.flickr.com/services/apps/create/noncommercial/?
 - Ensure you fill in the key and secret in the FlickrDownloaderApp.cs file.
 - Set your app authentication to Desktop.
 - First do step 1. This will get all your photos and write video metadata only;.

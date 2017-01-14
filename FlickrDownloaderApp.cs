@@ -108,6 +108,7 @@ namespace FlickrDownloader
                         break;
                 }
             }
+            int count = 0;
             foreach (string file in videos)
             {
                 string id = Path.GetFileNameWithoutExtension(file);
@@ -134,7 +135,13 @@ namespace FlickrDownloader
                 // delete the txt file and mp4 file
                 File.Delete(path);
                 File.Delete(mp4File);
+                Console.Write("Videos Moved: {0}     ", ++count);
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Enter)
+                {
+                    return;
+                }
             }
+            Console.WriteLine("Videos Moved: {0}     ", count);
         }
 
         private static void DownloadVideos()
@@ -199,9 +206,20 @@ namespace FlickrDownloader
             int skipped = 0;
             Console.WriteLine("Downloading {0} photos and videos, ESC to abort.", count);
             HttpClient client = new HttpClient();
+            List<PhotoCollection> photosCollections = new List<PhotoCollection>();
+            PhotoCollection photos = f.PeopleGetPhotos(options, pages, 500);
+            PhotoCollection photos2 = null;
             for (int i = 0; i < pages; i++)
             {
-                PhotoCollection photos = f.PeopleGetPhotos(options, i, 500);
+                if (photos2 != null)
+                {
+                    photos = photos2;
+                    photos2 = null;
+                }
+                System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback((s) =>
+                {
+                    photos2 = f.PeopleGetPhotos(options, i, 500);
+                }));
                 string subFolder;
                 foreach (Photo photo in photos)
                 {
@@ -281,23 +299,24 @@ namespace FlickrDownloader
                                 }
                             }
                             File.Move(tmpPath, filePath);
+                            info.CreationTimeUtc = info.LastAccessTimeUtc = info.LastWriteTimeUtc = dt;
+                            info.Refresh();
                         }
                         else
                         {
                             skipped++;
                         }
-                        info.CreationTimeUtc = info.LastAccessTimeUtc = info.LastWriteTimeUtc = dt;
-                        info.Refresh();
+                        Console.Write("{0} / {1} ({2} skipped, {3} unknown date)       \r", ++downloaded, count, skipped, unknownDateTakenCount);
+                        if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                        {
+                            Console.WriteLine("{0} / {1} ({2} skipped, {3} unknown date), ABORTED!", downloaded, count, skipped, unknownDateTakenCount);
+                            return;
+                        }
                     }
-                    if (++downloaded % 10 == 0)
-                    {
-                        Console.Write("{0} / {1} ({2} skipped, {3} unknown date)       \r", downloaded, count, skipped, unknownDateTakenCount);
-                    }
-                    if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
-                    {
-                        Console.WriteLine("{0} / {1} ({2} skipped, {3} unknown date), ABORTED!", downloaded, count, skipped, unknownDateTakenCount);
-                        return;
-                    }
+                }
+                while (photos2 == null)
+                {
+                    System.Threading.Thread.Sleep(20);
                 }
             }
             Console.WriteLine("{0} / {1} ({2} skipped, {3} unknown date), DONE!", downloaded, count, skipped, unknownDateTakenCount);
