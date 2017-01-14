@@ -131,11 +131,10 @@ namespace FlickrDownloader
                 }
                 string mp4File = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(path)));
                 FileInfo oldInfo = new FileInfo(mp4File);
+                DateTime oldWriteTime = oldInfo.LastWriteTimeUtc;
+                DateTime oldCreationTime = oldInfo.CreationTimeUtc;
                 string newFile = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(file));
-                if (File.Exists(newFile))
-                {
-                    File.Delete(newFile);
-                }
+
                 // delete the txt file and mp4 file
                 if (File.Exists(path))
                 {
@@ -145,12 +144,18 @@ namespace FlickrDownloader
                 {
                     File.Delete(mp4File);
                 }
+
+                // move the video over
+                if (File.Exists(newFile))
+                {
+                    File.Delete(newFile);
+                }
                 File.Move(file, newFile);
 
                 // copy over dates
                 FileInfo info = new FileInfo(newFile);
-                info.LastWriteTimeUtc = oldInfo.LastWriteTimeUtc;
-                info.CreationTimeUtc = oldInfo.CreationTimeUtc;
+                info.LastWriteTimeUtc = oldWriteTime;
+                info.CreationTimeUtc = oldCreationTime;
                 info.Refresh();
 
                 Console.Write("Videos Moved: {0}     \r", ++count);
