@@ -32,7 +32,8 @@ namespace FlickrDownloader
             string frob = f.AuthGetFrob();
             string url = f.AuthCalcUrl(frob, AuthLevel.Read);
             System.Diagnostics.Process.Start(url);
-            Console.Write("Press ENTER to continue once you have authorized this app.");
+            Console.WriteLine("Press ENTER to continue once you have authorized this app.");
+            Console.Write("--> ");
             Console.ReadLine();
             Auth auth = f.AuthGetToken(frob);
             userId = auth.User.UserId;
@@ -113,6 +114,13 @@ namespace FlickrDownloader
                 }
             }
             int count = 0;
+            Console.WriteLine("Found {0} videos and {1} metadata, press ENTER to proceed.", videos.Count, idsToPaths.Count);
+            Console.Write("--> ");
+            if (Console.ReadKey().Key != ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                return;
+            }
             foreach (string file in videos)
             {
                 string id = Path.GetFileNameWithoutExtension(file);
@@ -128,6 +136,15 @@ namespace FlickrDownloader
                 {
                     File.Delete(newFile);
                 }
+                // delete the txt file and mp4 file
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+                if (File.Exists(mp4File))
+                {
+                    File.Delete(mp4File);
+                }
                 File.Move(file, newFile);
 
                 // copy over dates
@@ -136,9 +153,6 @@ namespace FlickrDownloader
                 info.CreationTimeUtc = oldInfo.CreationTimeUtc;
                 info.Refresh();
 
-                // delete the txt file and mp4 file
-                File.Delete(path);
-                File.Delete(mp4File);
                 Console.Write("Videos Moved: {0}     \r", ++count);
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Enter)
                 {
