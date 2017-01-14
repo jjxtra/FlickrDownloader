@@ -1,14 +1,18 @@
 ﻿A simple console app to download all your Flickr photos and videos.
 
 Instructions:
+- Download the latest Microsoft Visual Studio community edition.
 - Sign up for a Flickr API key: https://www.flickr.com/services/apps/create/noncommercial/?
-- Ensure you fill in the key and secret in the FlickrDownloaderApp.cs file.
-- Set your app authentication to Desktop.
-- First do step 1. This will get all your photos and write video metadata only;.
+- Make sure to set your app authentication to Desktop in the Flickr app manager. Last I checked, authentication parmeters were on the right side panel.
+- Open FlickrDownloader.sln in Microsoft Visual Studio.
+- Enter you key and secret in the FlickrDownloaderApp.cs file at the top.
+- Press F5 to run.
+- First do step 1. This will get all your original photos and write video metadata only.
 - Next, step 2. This automates your browser (Chrome is ideal) to download all your original videos.
 - Finally, step 3 where it merges your browser downloads folder to the folder where all your photos downloaded, keeping video metadata intact!
 - *** IMPORTANT *** Clear out your browser download folder before running step 2!
 - *** IMPORTANT *** Let the program run over night. Make sure your computer is set to never sleep.
+- Last step: Migrate to a real photos service like Google Photos.
 
 The MIT License
 
