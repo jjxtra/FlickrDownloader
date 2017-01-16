@@ -17,9 +17,8 @@ namespace FlickrDownloader
     public static class FlickrDownloaderApp
     {
         // TODO: Fill these in with your app details
-        private const string appKey = "";
-        private const string appSecret = "";
-
+        private static string appKey = "";
+        private static string appSecret = "";
         private static Flickr f;
         private static string userId;
         private static string userName;
@@ -28,6 +27,7 @@ namespace FlickrDownloader
         {
             Console.WriteLine("You need to login to Flickr.");
             Console.Write("Press ENTER to open a browser to Flickr. Return here when done.");
+            Console.Write("--> ");
             Console.ReadLine();
             string frob = f.AuthGetFrob();
             string url = f.AuthCalcUrl(frob, AuthLevel.Read);
@@ -199,7 +199,7 @@ namespace FlickrDownloader
             {
                 sleepSpan = TimeSpan.FromSeconds(10.0);
             }
-            Console.WriteLine("Press ENTER once browser stops downloading videos or to abort.");
+            Console.WriteLine("Press ENTER once browser stops downloading videos or to abort early.");
             Console.Write("--> ");
 
             foreach (string file in videoTextFiles)
@@ -357,6 +357,18 @@ namespace FlickrDownloader
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(appKey))
+                {
+                    Console.WriteLine("Enter app API key:");
+                    Console.Write("--> ");
+                    appKey = Console.ReadLine();
+                }
+                if (string.IsNullOrWhiteSpace(appSecret))
+                {
+                    Console.WriteLine("Enter app API secret:");
+                    Console.Write("--> ");
+                    appSecret = Console.ReadLine();
+                }
                 f = new Flickr(appKey, appSecret);
                 f.InstanceCacheDisabled = true;
                 startOver:
