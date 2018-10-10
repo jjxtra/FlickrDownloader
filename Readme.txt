@@ -3,7 +3,7 @@
 Instructions:
 - Download the latest Microsoft Visual Studio community edition.
 - Sign up for a Flickr API key: https://www.flickr.com/services/apps/create/noncommercial/?
-- Make sure to set your app authentication to Desktop in the Flickr app manager. Last I checked, authentication parmeters were on the right side panel.
+- Make sure to set your app authentication to Desktop in the Flickr app manager. Last I checked, authentication parameters were on the right side panel.
 - Open FlickrDownloader.sln in Microsoft Visual Studio.
 - Enter you key and secret in the FlickrDownloaderApp.cs file at the top.
 - Press F5 to run.
